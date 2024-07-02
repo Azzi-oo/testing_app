@@ -2,7 +2,9 @@ from rest_framework import viewsets, filters, status
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from general.api.filter import BookingFilter
 from general.models import Room, Booking, User
+from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import RoomSerializer, BookingSerializer, UserRegistrationSerializer
 from rest_framework.mixins import CreateModelMixin, ListModelMixin, RetrieveModelMixin
 from rest_framework.viewsets import GenericViewSet
@@ -11,7 +13,7 @@ from rest_framework.viewsets import GenericViewSet
 class RoomViewSet(viewsets.ModelViewSet):
     queryset = Room.objects.all()
     serializer_class = RoomSerializer
-    filter_backends = [filters.OrderingFilter, filters.SearchFilter]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     ordering_fields = ['price_per_night', 'capacity']
     search_classses = ['name']
 
@@ -20,6 +22,8 @@ class BookingViewSet(viewsets.ModelViewSet):
     queryset = Booking.objects.all()
     serializer_class = BookingSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = BookingFilter
 
     def get_queryset(self):
         if self.request.user.is_superuser:
@@ -43,13 +47,11 @@ class BookingViewSet(viewsets.ModelViewSet):
         request.data['user'] = request.user.id
         return super().create(request, *args, **kwargs)
 
-    @action(detail=True, methods=['delete'], permission_classes=[IsAuthenticated])
-    def cancel(self, request, pk=None):
+    def destroy(self, request, *args, **kwargs):
         booking = self.get_object()
         if request.user == booking.user or request.user.is_superuser:
-            booking.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        return Response(status=status.HTTP_403_FORBIDDEN)
+            return super().destroy(request, *args, **kwargs)
+        return Response({'error': 'You do not have permission to cancel this booking'}, status=status.HTTP_403_FORBIDDEN)
 
 
 class UserViewSet(
